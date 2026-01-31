@@ -203,6 +203,32 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
+const sendUpdateStatus = (payload) => {
+  if (!mainWindow) return;
+  mainWindow.webContents.send("update:status", payload);
+};
+
+if (app.isPackaged) {
+  autoUpdater.on("checking-for-update", () => {
+    sendUpdateStatus({ status: "checking" });
+  });
+  autoUpdater.on("update-available", (info) => {
+    sendUpdateStatus({ status: "available", info });
+  });
+  autoUpdater.on("update-not-available", () => {
+    sendUpdateStatus({ status: "none" });
+  });
+  autoUpdater.on("download-progress", (progress) => {
+    sendUpdateStatus({ status: "downloading", progress });
+  });
+  autoUpdater.on("update-downloaded", (info) => {
+    sendUpdateStatus({ status: "downloaded", info });
+  });
+  autoUpdater.on("error", (err) => {
+    sendUpdateStatus({ status: "error", message: String(err?.message || err) });
+  });
+}
+
 ipcMain.handle("config:get", () => {
   return loadConfig();
 });
@@ -287,6 +313,10 @@ ipcMain.handle("zoom:set", (_, value) => {
 ipcMain.handle("app:quit", () => {
   app.quit();
   return true;
+});
+
+ipcMain.handle("app:version", () => {
+  return app.getVersion();
 });
 
 ipcMain.handle("app:shutdown", () => {
