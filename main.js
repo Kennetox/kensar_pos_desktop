@@ -129,6 +129,19 @@ const hashAdminPin = (pin) =>
   crypto.createHash("sha256").update(String(pin)).digest("hex");
 
 let mainWindow;
+let autoRestartTimer;
+let autoRestartInterval;
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+}
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
@@ -222,7 +235,24 @@ if (app.isPackaged) {
     sendUpdateStatus({ status: "downloading", progress });
   });
   autoUpdater.on("update-downloaded", (info) => {
-    sendUpdateStatus({ status: "downloaded", info });
+    let remaining = 15;
+    sendUpdateStatus({ status: "downloaded", info, countdownSeconds: remaining });
+    if (autoRestartTimer) clearTimeout(autoRestartTimer);
+    if (autoRestartInterval) clearInterval(autoRestartInterval);
+    autoRestartInterval = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(autoRestartInterval);
+        autoRestartInterval = null;
+        autoUpdater.quitAndInstall(false, true);
+      } else {
+        sendUpdateStatus({
+          status: "downloaded",
+          info,
+          countdownSeconds: remaining,
+        });
+      }
+    }, 1000);
   });
   autoUpdater.on("error", (err) => {
     sendUpdateStatus({ status: "error", message: String(err?.message || err) });
