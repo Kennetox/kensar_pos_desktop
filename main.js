@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const { exec } = require("child_process");
 const path = require("path");
 const fs = require("fs");
@@ -184,6 +185,14 @@ const createWindow = () => {
 app.whenReady().then(() => {
   ensureDeviceInfo();
   createWindow();
+  if (app.isPackaged) {
+    autoUpdater.logger = console;
+    autoUpdater.autoDownload = true;
+    autoUpdater.checkForUpdatesAndNotify();
+    setInterval(() => {
+      autoUpdater.checkForUpdatesAndNotify();
+    }, 6 * 60 * 60 * 1000);
+  }
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

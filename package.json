@@ -7,12 +7,16 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --publish=never",
+    "dist:publish": "electron-builder --publish=always",
     "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "dependencies": {
+    "electron-updater": "^6.3.0"
+  },
   "devDependencies": {
     "electron": "^40.0.0",
     "electron-builder": "^24.13.3"
@@ -29,6 +33,13 @@
     "directories": {
       "output": "dist"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Kennetox",
+        "repo": "kensar_pos_desktop"
+      }
+    ],
     "win": {
       "target": "nsis",
       "artifactName": "MetrikPOS-Setup-${version}.${ext}",
