@@ -298,8 +298,10 @@ ipcMain.handle("config:clear", () => {
   const current = loadConfig() || {};
   const device = ensureDeviceInfo();
   const next = {
-    ...device,
-    uiZoomFactor: typeof current.uiZoomFactor === "number" ? current.uiZoomFactor : undefined,
+    deviceId: device.deviceId,
+    deviceLabel: device.deviceLabel || os.hostname(),
+    uiZoomFactor:
+      typeof current.uiZoomFactor === "number" ? current.uiZoomFactor : undefined,
     adminPinHash: current.adminPinHash,
   };
   saveConfig(next);
