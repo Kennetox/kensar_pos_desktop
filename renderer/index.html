@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Metrik POS Desktop</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="brand">
+        <div class="logo">M</div>
+        <div>
+          <h1>Metrik POS</h1>
+          <p>Configuracion de estacion</p>
+        </div>
+      </header>
+
+      <section class="panel">
+        <h2>Vincula esta estacion</h2>
+        <p class="subtitle">
+          Ingresa el correo y la contraseña definidos en Configuracion → Estaciones.
+        </p>
+
+        <form id="station-form">
+          <label>
+            Correo de estacion
+            <input type="email" id="station-email" placeholder="caja1@kensar.com" required />
+          </label>
+          <label>
+            Contraseña
+            <input type="password" id="station-password" placeholder="Minimo 6 caracteres" required />
+          </label>
+
+          <div class="actions">
+            <button type="submit" class="primary">Configurar estacion</button>
+            <button type="button" id="clear-config" class="ghost">Reconfigurar</button>
+          </div>
+        </form>
+
+        <div id="status" class="status"></div>
+      </section>
+
+      <section class="panel muted">
+        <h3>Que pasa despues?</h3>
+        <ul>
+          <li>La estacion queda vinculada a este equipo.</li>
+          <li>Luego cada vendedor entra con su PIN personal.</li>
+          <li>Si deseas cambiar la estacion, usa Reconfigurar.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>
