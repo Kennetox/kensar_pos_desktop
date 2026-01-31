@@ -8,9 +8,6 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: kensar_pos_desktop
     steps:
       - name: Checkout
         uses: actions/checkout@v4
