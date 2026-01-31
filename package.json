@@ -42,7 +42,7 @@
     ],
     "win": {
       "target": "nsis",
-      "artifactName": "MetrikPOS-Setup-${version}.${ext}",
+      "artifactName": "MetrikPOS-Setup.${ext}",
       "icon": "assets/metriklogo_square.ico"
     },
     "nsis": {
