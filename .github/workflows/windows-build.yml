@@ -27,4 +27,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MetrikPOS-Windows-Installer
-          path: kensar_pos_desktop/dist/*.exe
+          path: dist/*.exe
