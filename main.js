@@ -9,6 +9,11 @@ const crypto = require("crypto");
 const POS_ENV = process.env.POS_ENV || "prod";
 const POS_BASE_URL =
   POS_ENV === "local" ? "http://localhost:3000" : "https://www.metrikpos.com";
+const POS_API_BASE_URL =
+  process.env.POS_API_BASE_URL ||
+  (POS_ENV === "local"
+    ? "http://localhost:8000"
+    : "https://api.metrikpos.com");
 const POS_LOGIN_URL = `${POS_BASE_URL}/login-pos`;
 const CONFIG_FILE = "station.json";
 const CONFIG_BACKUP_FILE = "station.json.bak";
@@ -80,6 +85,7 @@ const buildPosLoginUrl = (config) => {
   params.set("station_id", config.stationId);
   if (config.stationLabel) params.set("station_label", config.stationLabel);
   if (config.stationEmail) params.set("station_email", config.stationEmail);
+  if (config.tenantName) params.set("tenant_name", config.tenantName);
   return `${POS_LOGIN_URL}?${params.toString()}`;
 };
 
@@ -131,6 +137,62 @@ const hashAdminPin = (pin) =>
 let mainWindow;
 let autoRestartTimer;
 let autoRestartInterval;
+let isQuitting = false;
+
+const QUIT_LOGOUT_TIMEOUT_MS = 1500;
+
+const wait = (ms) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const readRendererAuthToken = async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  try {
+    const token = await mainWindow.webContents.executeJavaScript(
+      `(() => {
+        try {
+          const sessionRaw = window.sessionStorage.getItem("kensar_auth");
+          if (sessionRaw) {
+            const parsed = JSON.parse(sessionRaw);
+            if (parsed && typeof parsed.token === "string" && parsed.token.trim()) {
+              return parsed.token.trim();
+            }
+          }
+          const localRaw = window.localStorage.getItem("kensar_auth");
+          if (localRaw) {
+            const parsedLocal = JSON.parse(localRaw);
+            if (parsedLocal && typeof parsedLocal.token === "string" && parsedLocal.token.trim()) {
+              return parsedLocal.token.trim();
+            }
+          }
+        } catch {
+          return null;
+        }
+        return null;
+      })()`,
+      true
+    );
+    return typeof token === "string" && token.trim() ? token.trim() : null;
+  } catch {
+    return null;
+  }
+};
+
+const bestEffortLogoutBeforeQuit = async () => {
+  const token = await readRendererAuthToken();
+  if (!token) return;
+  const base = String(POS_API_BASE_URL || "").replace(/\/$/, "");
+  if (!base) return;
+  try {
+    await fetch(`${base}/auth/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    // ignore network/logout failures on exit
+  }
+};
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
@@ -209,6 +271,18 @@ app.whenReady().then(() => {
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on("before-quit", (event) => {
+  if (isQuitting) return;
+  event.preventDefault();
+  isQuitting = true;
+  Promise.race([
+    bestEffortLogoutBeforeQuit(),
+    wait(QUIT_LOGOUT_TIMEOUT_MS),
+  ]).finally(() => {
+    app.quit();
   });
 });
 
@@ -349,6 +423,14 @@ ipcMain.handle("app:quit", () => {
 
 ipcMain.handle("app:version", () => {
   return app.getVersion();
+});
+
+ipcMain.handle("env:get", () => {
+  return {
+    posEnv: POS_ENV,
+    posBaseUrl: POS_BASE_URL,
+    apiBaseUrl: POS_API_BASE_URL,
+  };
 });
 
 ipcMain.handle("app:shutdown", () => {

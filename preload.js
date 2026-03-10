@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("kensar", {
   quitApp: () => ipcRenderer.invoke("app:quit"),
   shutdownSystem: () => ipcRenderer.invoke("app:shutdown"),
   getAppVersion: () => ipcRenderer.invoke("app:version"),
+  getEnvConfig: () => ipcRenderer.invoke("env:get"),
   onUpdateStatus: (handler) => {
     ipcRenderer.removeAllListeners("update:status");
     ipcRenderer.on("update:status", (_event, payload) => handler(payload));

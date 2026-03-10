@@ -1,4 +1,17 @@
-const API_BASE_URL = "https://api.metrikpos.com";
+const FALLBACK_API_BASE_URL = "https://api.metrikpos.com";
+let API_BASE_URL = FALLBACK_API_BASE_URL;
+const envConfigPromise =
+  typeof window?.kensar?.getEnvConfig === "function"
+    ? window.kensar
+        .getEnvConfig()
+        .then((config) => {
+          if (config?.apiBaseUrl) {
+            API_BASE_URL = String(config.apiBaseUrl);
+          }
+          return config;
+        })
+        .catch(() => null)
+    : Promise.resolve(null);
 
 const form = document.getElementById("station-form");
 const emailInput = document.getElementById("station-email");
@@ -75,6 +88,7 @@ const loadExisting = async () => {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  await envConfigPromise;
   const stationEmail = emailInput.value.trim();
   const stationPassword = passwordInput.value.trim();
   if (!stationEmail || !stationPassword) {
@@ -107,6 +121,7 @@ form.addEventListener("submit", async (event) => {
       stationId: payload.station_id,
       stationLabel: payload.station_label,
       stationEmail: payload.station_email,
+      tenantName: payload.tenant_name || null,
     });
 
     const adminReady = await ensureAdminPin();

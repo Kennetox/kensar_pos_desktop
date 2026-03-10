@@ -1,10 +1,12 @@
 {
   "name": "kensar_pos_desktop",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "start:local": "POS_ENV=local electron .",
+    "start:local:api": "POS_ENV=local POS_API_BASE_URL=http://localhost:8000 electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --publish=never",
     "dist:publish": "electron-builder --publish=always",
