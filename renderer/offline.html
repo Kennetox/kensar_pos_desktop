@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Metrik POS - Contingencia</title>
+    <link rel="stylesheet" href="offline.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="badge">
+          <span class="dot" id="connection-dot"></span>
+          <span id="connection-label">Verificando conexión</span>
+        </div>
+        <h1>La caja no está apagada</h1>
+        <p class="lead">
+          El sistema no pudo abrir el POS en linea. Esta pantalla local te dice
+          qué revisar mientras se recupera la conexión.
+        </p>
+        <div class="meta-grid">
+          <div class="meta-card">
+            <span class="meta-label">Estacion</span>
+            <strong id="station-name">Cargando...</strong>
+          </div>
+          <div class="meta-card">
+            <span class="meta-label">API</span>
+            <strong id="api-status">No verificada</strong>
+          </div>
+          <div class="meta-card">
+            <span class="meta-label">Red del equipo</span>
+            <strong id="network-status">No verificada</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="content">
+        <div class="panel">
+          <h2>Que revisar primero</h2>
+          <ol class="steps">
+            <li>Verifica si el router o modem tiene energia y luces de internet.</li>
+            <li>Confirma si otros equipos del local navegan normalmente.</li>
+            <li>Revisa el cable de red o la señal Wi‑Fi del equipo POS.</li>
+            <li>Si ya regreso internet, pulsa Reintentar abrir POS.</li>
+          </ol>
+        </div>
+
+        <div class="panel">
+          <h2>Que puede hacer el equipo</h2>
+          <ul class="checks">
+            <li>Reintentar la conexion con el POS.</li>
+            <li>Abrir la pantalla de configuracion de la estacion.</li>
+            <li>Seguir el estado de red desde este panel.</li>
+          </ul>
+          <p class="note">
+            Si la conexion vuelve pero el POS no abre, usa Reintentar abrir POS.
+          </p>
+        </div>
+      </section>
+
+      <section class="actions">
+        <button id="retry-pos" class="primary">Reintentar abrir POS</button>
+        <button id="open-config" class="secondary">Abrir configuracion</button>
+        <button id="check-connection" class="secondary">Comprobar ahora</button>
+      </section>
+
+      <section class="footer-panel">
+        <div class="footer-title">Detalle tecnico</div>
+        <p id="failure-detail" class="detail">
+          Sin detalle disponible.
+        </p>
+      </section>
+    </main>
+
+    <script src="offline.js"></script>
+  </body>
+</html>

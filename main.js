@@ -15,6 +15,7 @@ const POS_API_BASE_URL =
     ? "http://localhost:8000"
     : "https://api.metrikpos.com");
 const POS_LOGIN_URL = `${POS_BASE_URL}/login-pos`;
+const OFFLINE_SCREEN_PATH = path.join(__dirname, "renderer", "offline.html");
 const CONFIG_FILE = "station.json";
 const CONFIG_BACKUP_FILE = "station.json.bak";
 const CONFIG_TMP_FILE = "station.json.tmp";
@@ -209,7 +210,7 @@ const createWindow = () => {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    backgroundColor: "#0b1020",
+    backgroundColor: "#111827",
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -247,6 +248,45 @@ const createWindow = () => {
     if (isZoomKey) {
       _event.preventDefault();
     }
+  });
+
+  const loadOfflineScreen = (details = {}) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const search = new URLSearchParams();
+    if (typeof details.reason === "string" && details.reason.trim()) {
+      search.set("reason", details.reason.trim());
+    }
+    if (typeof details.code === "number") {
+      search.set("code", String(details.code));
+    }
+    if (typeof details.url === "string" && details.url.trim()) {
+      search.set("url", details.url.trim());
+    }
+    mainWindow.loadFile(OFFLINE_SCREEN_PATH, {
+      search: search.toString() ? `?${search.toString()}` : "",
+    });
+  };
+
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame) return;
+      if (!validatedURL || validatedURL.startsWith("file://")) return;
+      if (errorCode === -3) return;
+      loadOfflineScreen({
+        code: errorCode,
+        reason: errorDescription,
+        url: validatedURL,
+      });
+    }
+  );
+
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    if (!details || details.reason === "clean-exit") return;
+    loadOfflineScreen({
+      reason: `Renderizador detenido (${details.reason})`,
+      code: -1,
+    });
   });
 
   const config = loadConfig();
