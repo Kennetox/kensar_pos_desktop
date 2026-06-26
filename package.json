@@ -9,7 +9,9 @@
     "start:local:api": "POS_ENV=local POS_API_BASE_URL=http://localhost:8000 electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --publish=never",
+    "dist:win": "electron-builder --win --publish=never",
     "dist:publish": "electron-builder --publish=always",
+    "dist:win:publish": "electron-builder --win --publish=always",
     "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [],
