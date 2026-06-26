@@ -5,7 +5,7 @@ const apiStatus = document.getElementById("api-status");
 const networkStatus = document.getElementById("network-status");
 const failureDetail = document.getElementById("failure-detail");
 const retryPosBtn = document.getElementById("retry-pos");
-const openConfigBtn = document.getElementById("open-config");
+const openNetworkSettingsBtn = document.getElementById("open-network-settings");
 const checkConnectionBtn = document.getElementById("check-connection");
 
 const query = new URLSearchParams(window.location.search);
@@ -105,10 +105,12 @@ const retryOpenPos = async () => {
   }
 };
 
-const openConfig = async () => {
-  if (window.kensar?.openConfig) {
-    await window.kensar.openConfig();
+const openNetworkSettings = async () => {
+  if (window.kensar?.openNetworkSettings) {
+    await window.kensar.openNetworkSettings();
+    return;
   }
+  setFailureDetail("No pudimos abrir la configuracion de red del equipo.");
 };
 
 if (failureReason || failureCode || failureUrl) {
@@ -133,8 +135,8 @@ retryPosBtn?.addEventListener("click", () => {
   void retryOpenPos();
 });
 
-openConfigBtn?.addEventListener("click", () => {
-  void openConfig();
+openNetworkSettingsBtn?.addEventListener("click", () => {
+  void openNetworkSettings();
 });
 
 checkConnectionBtn?.addEventListener("click", () => {

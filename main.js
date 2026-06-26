@@ -429,6 +429,22 @@ ipcMain.handle("config:open", () => {
   return true;
 });
 
+ipcMain.handle("system:open-network-settings", () => {
+  if (process.platform !== "win32") {
+    return false;
+  }
+  return new Promise((resolve) => {
+    exec('cmd /c start "" ms-settings:network-status', (error) => {
+      if (error) {
+        console.error("No pudimos abrir la configuracion de red:", error);
+        resolve(false);
+        return;
+      }
+      resolve(true);
+    });
+  });
+});
+
 ipcMain.handle("device:get", () => {
   const device = ensureDeviceInfo();
   return {

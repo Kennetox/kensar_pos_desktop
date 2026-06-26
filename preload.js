@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("kensar", {
   setConfig: (payload) => ipcRenderer.invoke("config:set", payload),
   clearConfig: () => ipcRenderer.invoke("config:clear"),
   openConfig: () => ipcRenderer.invoke("config:open"),
+  openNetworkSettings: () => ipcRenderer.invoke("system:open-network-settings"),
   hasAdminPin: () => ipcRenderer.invoke("admin:has"),
   setAdminPin: (pin) => ipcRenderer.invoke("admin:set", pin),
   verifyAdminPin: (pin) => ipcRenderer.invoke("admin:verify", pin),
