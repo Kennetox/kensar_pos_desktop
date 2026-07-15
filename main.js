@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { exec } = require("child_process");
 const path = require("path");
@@ -8,7 +8,8 @@ const crypto = require("crypto");
 
 const POS_ENV = process.env.POS_ENV || "prod";
 const POS_BASE_URL =
-  POS_ENV === "local" ? "http://localhost:3000" : "https://www.metrikpos.com";
+  process.env.POS_BASE_URL ||
+  (POS_ENV === "local" ? "http://localhost:3000" : "https://www.metrikpos.com");
 const POS_API_BASE_URL =
   process.env.POS_API_BASE_URL ||
   (POS_ENV === "local"
@@ -136,9 +137,8 @@ const hashAdminPin = (pin) =>
   crypto.createHash("sha256").update(String(pin)).digest("hex");
 
 let mainWindow;
-let autoRestartTimer;
-let autoRestartInterval;
 let isQuitting = false;
+let unresponsivePromptOpen = false;
 
 const QUIT_LOGOUT_TIMEOUT_MS = 1500;
 
@@ -289,6 +289,33 @@ const createWindow = () => {
     });
   });
 
+  mainWindow.on("unresponsive", async () => {
+    if (unresponsivePromptOpen || !mainWindow || mainWindow.isDestroyed()) return;
+    unresponsivePromptOpen = true;
+    try {
+      const result = await dialog.showMessageBox(mainWindow, {
+        type: "warning",
+        title: "Metrik POS no responde",
+        message: "La interfaz está tardando más de lo normal.",
+        detail:
+          "Puedes esperar o recargar el POS. El carrito guardado se recuperará al volver a abrir.",
+        buttons: ["Esperar", "Recargar POS"],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      });
+      if (
+        result.response === 1 &&
+        mainWindow &&
+        !mainWindow.isDestroyed()
+      ) {
+        mainWindow.webContents.reload();
+      }
+    } finally {
+      unresponsivePromptOpen = false;
+    }
+  });
+
   const config = loadConfig();
   if (config && config.stationId) {
     mainWindow.loadURL(buildPosLoginUrl(config));
@@ -303,6 +330,7 @@ app.whenReady().then(() => {
   if (app.isPackaged) {
     autoUpdater.logger = console;
     autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.checkForUpdatesAndNotify();
     setInterval(() => {
       autoUpdater.checkForUpdatesAndNotify();
@@ -349,24 +377,7 @@ if (app.isPackaged) {
     sendUpdateStatus({ status: "downloading", progress });
   });
   autoUpdater.on("update-downloaded", (info) => {
-    let remaining = 15;
-    sendUpdateStatus({ status: "downloaded", info, countdownSeconds: remaining });
-    if (autoRestartTimer) clearTimeout(autoRestartTimer);
-    if (autoRestartInterval) clearInterval(autoRestartInterval);
-    autoRestartInterval = setInterval(() => {
-      remaining -= 1;
-      if (remaining <= 0) {
-        clearInterval(autoRestartInterval);
-        autoRestartInterval = null;
-        autoUpdater.quitAndInstall(false, true);
-      } else {
-        sendUpdateStatus({
-          status: "downloaded",
-          info,
-          countdownSeconds: remaining,
-        });
-      }
-    }, 1000);
+    sendUpdateStatus({ status: "downloaded", info });
   });
   autoUpdater.on("error", (err) => {
     sendUpdateStatus({ status: "error", message: String(err?.message || err) });
