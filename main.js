@@ -139,6 +139,87 @@ const hashAdminPin = (pin) =>
 let mainWindow;
 let isQuitting = false;
 let unresponsivePromptOpen = false;
+let systemStatusTimer = null;
+let systemStatusState = "healthy";
+let systemStatusHealthyChecks = 0;
+
+const SYSTEM_STATUS_POLL_MS = 5000;
+const SYSTEM_STATUS_TIMEOUT_MS = 2500;
+
+const sendSystemStatus = (payload) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("system:status", payload);
+};
+
+const checkSystemStatus = async () => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SYSTEM_STATUS_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${POS_API_BASE_URL.replace(/\/$/, "")}/readyz`, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+    let payload = {};
+    try {
+      payload = await response.json();
+    } catch {
+      payload = {};
+    }
+
+    if (payload.status === "maintenance" || payload.maintenance === true) {
+      systemStatusState = "maintenance";
+      systemStatusHealthyChecks = 0;
+      sendSystemStatus({
+        state: "maintenance",
+        title: "Mantenimiento en curso",
+        message:
+          payload.message ||
+          "Estamos actualizando Metrik. Algunas funciones pueden no estar disponibles.",
+        retryAfterSeconds: payload.retry_after_seconds || 15,
+        checkedAt: payload.checked_at,
+      });
+      return;
+    }
+
+    if (!response.ok || payload.ready === false || payload.status === "degraded") {
+      systemStatusState = "degraded";
+      systemStatusHealthyChecks = 0;
+      sendSystemStatus({
+        state: "degraded",
+        title: "Problema de conexión",
+        message:
+          payload.message ||
+          "Metrik está teniendo dificultades para responder. Reintentando automáticamente.",
+        retryAfterSeconds: payload.retry_after_seconds || 10,
+        checkedAt: payload.checked_at,
+      });
+      return;
+    }
+
+    systemStatusHealthyChecks += 1;
+    if (systemStatusState !== "healthy" && systemStatusHealthyChecks < 2) return;
+    systemStatusState = "healthy";
+    sendSystemStatus({ state: "healthy" });
+  } catch {
+    systemStatusState = "degraded";
+    systemStatusHealthyChecks = 0;
+    sendSystemStatus({
+      state: "degraded",
+      title: "Problema de conexión",
+      message:
+        "Metrik no está respondiendo en este momento. Reintentando automáticamente.",
+      retryAfterSeconds: 10,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const startSystemStatusMonitor = () => {
+  if (systemStatusTimer) clearInterval(systemStatusTimer);
+  checkSystemStatus();
+  systemStatusTimer = setInterval(checkSystemStatus, SYSTEM_STATUS_POLL_MS);
+};
 
 const QUIT_LOGOUT_TIMEOUT_MS = 1500;
 
@@ -327,6 +408,7 @@ const createWindow = () => {
 app.whenReady().then(() => {
   ensureDeviceInfo();
   createWindow();
+  startSystemStatusMonitor();
   if (app.isPackaged) {
     autoUpdater.logger = console;
     autoUpdater.autoDownload = true;
