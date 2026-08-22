@@ -142,6 +142,7 @@ let unresponsivePromptOpen = false;
 let systemStatusTimer = null;
 let systemStatusState = "healthy";
 let systemStatusHealthyChecks = 0;
+let systemStatusNetworkFailures = 0;
 
 const SYSTEM_STATUS_POLL_MS = 5000;
 const SYSTEM_STATUS_TIMEOUT_MS = 2500;
@@ -167,6 +168,7 @@ const checkSystemStatus = async () => {
     }
 
     if (payload.status === "maintenance" || payload.maintenance === true) {
+      systemStatusNetworkFailures = 0;
       systemStatusState = "maintenance";
       systemStatusHealthyChecks = 0;
       sendSystemStatus({
@@ -182,6 +184,7 @@ const checkSystemStatus = async () => {
     }
 
     if (!response.ok || payload.ready === false || payload.status === "degraded") {
+      systemStatusNetworkFailures = 0;
       systemStatusState = "degraded";
       systemStatusHealthyChecks = 0;
       sendSystemStatus({
@@ -201,15 +204,26 @@ const checkSystemStatus = async () => {
     systemStatusState = "healthy";
     sendSystemStatus({ state: "healthy" });
   } catch {
-    systemStatusState = "degraded";
+    systemStatusNetworkFailures += 1;
     systemStatusHealthyChecks = 0;
-    sendSystemStatus({
-      state: "degraded",
-      title: "Problema de conexión",
-      message:
-        "Metrik no está respondiendo en este momento. Reintentando automáticamente.",
-      retryAfterSeconds: 10,
-    });
+    if (systemStatusState === "maintenance") {
+      sendSystemStatus({
+        state: "maintenance",
+        title: "Mantenimiento en curso",
+        message:
+          "Estamos actualizando Metrik. Algunas funciones pueden no estar disponibles.",
+        retryAfterSeconds: 15,
+      });
+    } else if (systemStatusNetworkFailures >= 2) {
+      systemStatusState = "degraded";
+      sendSystemStatus({
+        state: "degraded",
+        title: "Problema de conexión",
+        message:
+          "Metrik no está respondiendo en este momento. Reintentando automáticamente.",
+        retryAfterSeconds: 10,
+      });
+    }
   } finally {
     clearTimeout(timeout);
   }
