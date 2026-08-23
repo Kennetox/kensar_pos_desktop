@@ -31,12 +31,23 @@ const renderSystemStatus = (payload) => {
     document.documentElement.appendChild(element);
   }
   const maintenance = payload.state === "maintenance";
-  const title = payload.title || (maintenance ? "Mantenimiento en curso" : "Problema de conexión");
+  const connection = payload.state === "connection";
+  const title = payload.title || (maintenance ? "Mantenimiento en curso" : connection ? "Conexión a internet inestable" : "Problema del servicio");
   const message = payload.message || "Reintentando automáticamente.";
-  element.style.background = maintenance ? "#fffbeb" : "#fff1f2";
-  element.style.borderColor = maintenance ? "#fcd34d" : "#fda4af";
-  element.style.color = maintenance ? "#78350f" : "#881337";
+  element.style.background = maintenance ? "#fffbeb" : connection ? "#f0f9ff" : "#fff1f2";
+  element.style.borderColor = maintenance ? "#fcd34d" : connection ? "#7dd3fc" : "#fda4af";
+  element.style.color = maintenance ? "#78350f" : connection ? "#0c4a6e" : "#881337";
   element.replaceChildren();
+  const headerNode = document.createElement("div");
+  Object.assign(headerNode.style, { display: "flex", alignItems: "center", gap: "8px" });
+  const iconNode = document.createElement("span");
+  iconNode.setAttribute("aria-hidden", "true");
+  iconNode.innerHTML = connection
+    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.8a15.4 15.4 0 0 1 20 0"/><path d="M5 12.8a10.7 10.7 0 0 1 8-2.7"/><path d="M8.5 16.2a5.6 5.6 0 0 1 2.7-.9"/><path d="m3 3 18 18"/></svg>'
+    : maintenance
+      ? "↻"
+      : "!";
+  headerNode.appendChild(iconNode);
   const titleNode = document.createElement("div");
   titleNode.textContent = title;
   Object.assign(titleNode.style, { fontWeight: "700", fontSize: "15px", marginBottom: "3px" });
@@ -46,7 +57,8 @@ const renderSystemStatus = (payload) => {
   const retryNode = document.createElement("div");
   retryNode.textContent = "Reintentando automáticamente";
   Object.assign(retryNode.style, { fontSize: "11px", opacity: "0.7", marginTop: "5px" });
-  element.append(titleNode, messageNode, retryNode);
+  headerNode.appendChild(titleNode);
+  element.append(headerNode, messageNode, retryNode);
 };
 
 ipcRenderer.on("system:status", (_event, payload) => renderSystemStatus(payload));

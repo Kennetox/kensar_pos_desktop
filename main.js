@@ -189,10 +189,10 @@ const checkSystemStatus = async () => {
       systemStatusHealthyChecks = 0;
       sendSystemStatus({
         state: "degraded",
-        title: "Problema de conexión",
+        title: "Problema del servicio",
         message:
           payload.message ||
-          "Metrik está teniendo dificultades para responder. Reintentando automáticamente.",
+          "Metrik está teniendo dificultades internas. Reintentando automáticamente.",
         retryAfterSeconds: payload.retry_after_seconds || 10,
         checkedAt: payload.checked_at,
       });
@@ -215,12 +215,12 @@ const checkSystemStatus = async () => {
         retryAfterSeconds: 15,
       });
     } else if (systemStatusNetworkFailures >= 2) {
-      systemStatusState = "degraded";
+      systemStatusState = "connection";
       sendSystemStatus({
-        state: "degraded",
-        title: "Problema de conexión",
+        state: "connection",
+        title: "Conexión a internet inestable",
         message:
-          "Metrik no está respondiendo en este momento. Reintentando automáticamente.",
+          "No logramos comunicarnos con Metrik. Revisa la conexión a internet de este equipo.",
         retryAfterSeconds: 10,
       });
     }
