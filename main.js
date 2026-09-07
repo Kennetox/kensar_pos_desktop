@@ -133,6 +133,15 @@ const ensureDeviceInfo = () => {
   return next;
 };
 
+const configureWindowsAutoStart = () => {
+  if (process.platform !== "win32" || !app.isPackaged) return;
+  const config = loadConfig() || {};
+  app.setLoginItemSettings({
+    openAtLogin: config.autoStartEnabled !== false,
+    path: process.execPath,
+  });
+};
+
 const hashAdminPin = (pin) =>
   crypto.createHash("sha256").update(String(pin)).digest("hex");
 
@@ -421,6 +430,7 @@ const createWindow = () => {
 
 app.whenReady().then(() => {
   ensureDeviceInfo();
+  configureWindowsAutoStart();
   createWindow();
   startSystemStatusMonitor();
   if (app.isPackaged) {
