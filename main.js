@@ -195,6 +195,18 @@ const checkSystemStatus = async () => {
     }
 
     if (!response.ok) {
+      if (systemStatusState === "maintenance") {
+        systemStatusHealthyChecks = 0;
+        sendSystemStatus({
+          state: "maintenance",
+          title: "Mantenimiento en curso",
+          message:
+            "Estamos actualizando Metrik. Algunas funciones pueden no estar disponibles.",
+          retryAfterSeconds: payload.retry_after_seconds || 15,
+          checkedAt: Date.now(),
+        });
+        return;
+      }
       systemStatusState = "degraded";
       systemStatusHealthyChecks = 0;
       sendSystemStatus({
@@ -228,6 +240,7 @@ const checkSystemStatus = async () => {
         message:
           "Estamos actualizando Metrik. Algunas funciones pueden no estar disponibles.",
         retryAfterSeconds: 15,
+        checkedAt: Date.now(),
       });
     } else if (systemStatusNetworkFailures >= SYSTEM_STATUS_NETWORK_FAILURES_TO_OPEN) {
       systemStatusState = "connection";

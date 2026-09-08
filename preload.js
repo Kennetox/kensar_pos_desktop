@@ -61,9 +61,6 @@ const ensureSystemStatusStyles = () => {
       #${STATUS_ELEMENT_ID} {
         transition: opacity 160ms ease-out !important;
       }
-      #${STATUS_ELEMENT_ID} .kensar-native-status-spinner {
-        animation: none;
-      }
     }
   `;
   (document.head || document.documentElement).appendChild(style);
@@ -79,13 +76,11 @@ const formatStatusTime = (value) => {
 };
 
 const animateStatusSpinner = (spinnerNode) => {
-  if (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  ) {
-    return;
-  }
+  if (!spinnerNode) return;
+  spinnerNode.style.animation =
+    "kensar-native-status-spin 0.8s linear infinite";
+  spinnerNode.style.transformOrigin = "50% 50%";
+  spinnerNode.style.willChange = "transform";
   if (!spinnerNode || typeof spinnerNode.animate !== "function") return;
   spinnerNode.animate(
     [{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }],
