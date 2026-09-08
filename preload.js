@@ -78,6 +78,25 @@ const formatStatusTime = (value) => {
   });
 };
 
+const animateStatusSpinner = (spinnerNode) => {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    return;
+  }
+  if (!spinnerNode || typeof spinnerNode.animate !== "function") return;
+  spinnerNode.animate(
+    [{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }],
+    {
+      duration: 800,
+      iterations: Infinity,
+      easing: "linear",
+    }
+  );
+};
+
 const createStatusIcon = (state, content) => {
   const icon = document.createElement("span");
   icon.setAttribute("aria-hidden", "true");
@@ -253,6 +272,7 @@ const renderSystemStatus = (payload) => {
     opacity: "0.8",
   });
   retryNode.append(spinnerNode, document.createTextNode("Reintentando automáticamente"));
+  animateStatusSpinner(spinnerNode);
   statusNode.append(checkedNode, retryNode);
   body.append(header, messageNode, detailNode, statusNode);
   layout.appendChild(body);

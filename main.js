@@ -155,6 +155,8 @@ let systemStatusNetworkFailures = 0;
 
 const SYSTEM_STATUS_POLL_MS = 5000;
 const SYSTEM_STATUS_TIMEOUT_MS = 2500;
+const SYSTEM_STATUS_NETWORK_FAILURES_TO_OPEN = 2;
+const SYSTEM_STATUS_SUCCESSES_TO_CLOSE = 2;
 
 const sendSystemStatus = (payload) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -175,9 +177,9 @@ const checkSystemStatus = async () => {
     } catch {
       payload = {};
     }
+    systemStatusNetworkFailures = 0;
 
     if (payload.status === "maintenance" || payload.maintenance === true) {
-      systemStatusNetworkFailures = 0;
       systemStatusState = "maintenance";
       systemStatusHealthyChecks = 0;
       sendSystemStatus({
@@ -187,13 +189,12 @@ const checkSystemStatus = async () => {
           payload.message ||
           "Estamos actualizando Metrik. Algunas funciones pueden no estar disponibles.",
         retryAfterSeconds: payload.retry_after_seconds || 15,
-        checkedAt: payload.checked_at,
+        checkedAt: Date.now(),
       });
       return;
     }
 
-    if (!response.ok || payload.ready === false || payload.status === "degraded") {
-      systemStatusNetworkFailures = 0;
+    if (!response.ok) {
       systemStatusState = "degraded";
       systemStatusHealthyChecks = 0;
       sendSystemStatus({
@@ -203,13 +204,18 @@ const checkSystemStatus = async () => {
           payload.message ||
           "Metrik está teniendo dificultades internas. Reintentando automáticamente.",
         retryAfterSeconds: payload.retry_after_seconds || 10,
-        checkedAt: payload.checked_at,
+        checkedAt: Date.now(),
       });
       return;
     }
 
     systemStatusHealthyChecks += 1;
-    if (systemStatusState !== "healthy" && systemStatusHealthyChecks < 2) return;
+    if (
+      systemStatusState !== "healthy" &&
+      systemStatusHealthyChecks < SYSTEM_STATUS_SUCCESSES_TO_CLOSE
+    ) {
+      return;
+    }
     systemStatusState = "healthy";
     sendSystemStatus({ state: "healthy" });
   } catch {
@@ -223,7 +229,7 @@ const checkSystemStatus = async () => {
           "Estamos actualizando Metrik. Algunas funciones pueden no estar disponibles.",
         retryAfterSeconds: 15,
       });
-    } else if (systemStatusNetworkFailures >= 2) {
+    } else if (systemStatusNetworkFailures >= SYSTEM_STATUS_NETWORK_FAILURES_TO_OPEN) {
       systemStatusState = "connection";
       sendSystemStatus({
         state: "connection",
