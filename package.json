@@ -1,17 +1,20 @@
 {
   "name": "kensar_pos_desktop",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "start:local": "POS_ENV=local electron .",
-    "start:local:api": "POS_ENV=local POS_API_BASE_URL=http://localhost:8000 electron .",
+    "build:pos-ui": "npm --prefix ../kensar_frontend run build:desktop-pos",
+    "start": "npm run start:local:api",
+    "start:prod": "npm run build:pos-ui && electron .",
+    "start:local": "npm run build:pos-ui && POS_ENV=local electron .",
+    "start:local:api": "npm run build:pos-ui && POS_ENV=local POS_API_BASE_URL=http://127.0.0.1:8000 POS_DISABLE_PRINT_AGENT=1 electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --publish=never",
     "dist:win": "electron-builder --win --publish=never",
     "dist:publish": "electron-builder --publish=always",
     "dist:win:publish": "electron-builder --win --publish=always",
+    "test": "node --test test/*.test.js",
     "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [],
@@ -31,7 +34,12 @@
     "files": [
       "main.js",
       "preload.js",
+      "local-store.js",
+      "connectivity-state.js",
+      "diagnostics.js",
+      "health-probe.js",
       "renderer/**",
+      "pos-ui/**",
       "package.json"
     ],
     "directories": {

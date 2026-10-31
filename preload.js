@@ -1,9 +1,63 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+const apiBaseUrlArgument = process.argv.find((value) =>
+  value.startsWith("--metrik-api-base-url=")
+);
+const nativeApiBaseUrl = apiBaseUrlArgument
+  ? apiBaseUrlArgument.slice("--metrik-api-base-url=".length)
+  : "";
+const printAgentEnabledArgument = process.argv.find((value) =>
+  value.startsWith("--metrik-print-agent-enabled=")
+);
+const nativePrintAgentEnabled = !printAgentEnabledArgument ||
+  printAgentEnabledArgument.endsWith("=1");
+
 const STATUS_ELEMENT_ID = "kensar-native-system-status";
 const STATUS_STYLE_ID = "kensar-native-system-status-style";
 const STATUS_TRANSITION_MS = 320;
 let statusRemovalTimer = null;
+let compactOfflineMode = false;
+const systemStatusSubscribers = new Set();
+const offlineSnapshotSyncSubscribers = new Set();
+const offlineOutboxSyncSubscribers = new Set();
+let startupOverlay = null;
+
+const showNativeStartupOverlay = () => {
+  const mount = () => {
+    if (startupOverlay || !document.body) return;
+    startupOverlay = document.createElement("div");
+    startupOverlay.id = "metrik-native-startup";
+    Object.assign(startupOverlay.style, {
+      position: "fixed", inset: "0", zIndex: "2147483646", display: "flex",
+      alignItems: "center", justifyContent: "center", background: "#0f172a",
+      color: "#e2e8f0", fontFamily: "Inter, system-ui, sans-serif",
+    });
+    startupOverlay.innerHTML = '<div style="text-align:center"><div style="width:36px;height:36px;border:4px solid #334155;border-top-color:#7dd3fc;border-radius:50%;margin:0 auto 16px;animation:metrik-start-spin .8s linear infinite"></div><strong>Iniciando Metrik POS…</strong><p id="metrik-start-detail" style="margin:8px 0 0;color:#94a3b8;font-size:14px">Cargando interfaz local…</p></div>';
+    const style = document.createElement("style");
+    style.textContent = "@keyframes metrik-start-spin{to{transform:rotate(360deg)}}";
+    document.head.appendChild(style);
+    // Next owns and can reconcile <body>; mount beside it so a failed route
+    // cannot remove the native recovery surface before it is dismissed.
+    document.documentElement.appendChild(startupOverlay);
+    window.setTimeout(() => {
+      const detail = document.getElementById("metrik-start-detail");
+      if (detail && startupOverlay) detail.textContent = "La interfaz tarda demasiado. Cierra y vuelve a abrir la aplicación.";
+    }, 10_000);
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount, { once: true });
+  else mount();
+};
+
+const hideNativeStartupOverlay = () => {
+  startupOverlay?.remove();
+  startupOverlay = null;
+};
+
+// The POS export owns the React tree. Keep the recovery surface outside it,
+// directly under <html>, so hydration cannot remove it. The static export may
+// have loaded while its JavaScript chunks fail to hydrate; in that state
+// Electron previously showed only its dark BrowserWindow background forever.
+showNativeStartupOverlay();
 
 const STATUS_CONTENT = {
   maintenance: {
@@ -92,6 +146,19 @@ const animateStatusSpinner = (spinnerNode) => {
   );
 };
 
+const hideSystemStatus = () => {
+  const element = document.getElementById(STATUS_ELEMENT_ID);
+  if (!element) return;
+  if (statusRemovalTimer) clearTimeout(statusRemovalTimer);
+  element.style.transform = "translate(-50%, -120%)";
+  element.style.opacity = "0";
+  element.style.pointerEvents = "none";
+  statusRemovalTimer = setTimeout(() => {
+    if (element?.isConnected) element.remove();
+    statusRemovalTimer = null;
+  }, STATUS_TRANSITION_MS);
+};
+
 const createStatusIcon = (state, content) => {
   const icon = document.createElement("span");
   icon.setAttribute("aria-hidden", "true");
@@ -122,16 +189,23 @@ const renderSystemStatus = (payload) => {
   if (typeof document === "undefined") return;
   let element = document.getElementById(STATUS_ELEMENT_ID);
   if (payload && payload.state === "healthy") {
-    if (element) {
-      if (statusRemovalTimer) clearTimeout(statusRemovalTimer);
-      element.style.transform = "translate(-50%, -120%)";
-      element.style.opacity = "0";
-      element.style.pointerEvents = "none";
-      statusRemovalTimer = setTimeout(() => {
-        if (element?.isConnected) element.remove();
-        statusRemovalTimer = null;
-      }, STATUS_TRANSITION_MS);
-    }
+    hideSystemStatus();
+    return;
+  }
+
+  // "reconnecting" y "recovering" son estados transitorios de la máquina
+  // de conectividad. El POS los comunica de forma discreta; no deben cubrir
+  // teclado, cobro ni catálogo con el aviso nativo.
+  if (payload?.state === "reconnecting" || payload?.state === "recovering") {
+    hideSystemStatus();
+    return;
+  }
+
+  // Once a cashier deliberately entered with a valid offline capability, the
+  // React POS owns a compact, non-blocking indicator. Keep the prominent
+  // native alert for unexpected interruptions during normal online work.
+  if (compactOfflineMode && (payload?.state === "connection" || payload?.state === "degraded")) {
+    hideSystemStatus();
     return;
   }
 
@@ -280,10 +354,25 @@ const renderSystemStatus = (payload) => {
   });
 };
 
-ipcRenderer.on("system:status", (_event, payload) => renderSystemStatus(payload));
+ipcRenderer.on("system:status", (_event, payload) => {
+  renderSystemStatus(payload);
+  for (const subscriber of systemStatusSubscribers) {
+    subscriber(payload);
+  }
+});
+
+ipcRenderer.on("offline:snapshot-sync", (_event, payload) => {
+  for (const subscriber of offlineSnapshotSyncSubscribers) subscriber(payload);
+});
+
+ipcRenderer.on("offline:outbox-sync", (_event, payload) => {
+  for (const subscriber of offlineOutboxSyncSubscribers) subscriber(payload);
+});
 
 contextBridge.exposeInMainWorld("kensar", {
   isNativePos: true,
+  apiBaseUrl: nativeApiBaseUrl,
+  printAgentEnabled: nativePrintAgentEnabled,
   getConfig: () => ipcRenderer.invoke("config:get"),
   setConfig: (payload) => ipcRenderer.invoke("config:set", payload),
   clearConfig: () => ipcRenderer.invoke("config:clear"),
@@ -300,6 +389,52 @@ contextBridge.exposeInMainWorld("kensar", {
   shutdownSystem: () => ipcRenderer.invoke("app:shutdown"),
   getAppVersion: () => ipcRenderer.invoke("app:version"),
   getEnvConfig: () => ipcRenderer.invoke("env:get"),
+  getSystemStatus: () => ipcRenderer.invoke("system:status:get"),
+  getOfflineStorageStatus: () => ipcRenderer.invoke("offline:storage-status"),
+  getOfflineSnapshot: () => ipcRenderer.invoke("offline:snapshot:get"),
+  getOfflineSnapshotSyncStatus: () => ipcRenderer.invoke("offline:snapshot-sync-status"),
+  refreshOfflineSnapshot: (token, options) => ipcRenderer.invoke("offline:snapshot-refresh", token, options),
+  refreshOfflineAuthorization: (token) => ipcRenderer.invoke("offline:authorization:refresh", token),
+  verifyOfflineAuthorization: (pin) => ipcRenderer.invoke("offline:authorization:verify", pin),
+  enqueueOfflineSale: (record) => ipcRenderer.invoke("offline:sales:enqueue", record),
+  getOfflineSales: () => ipcRenderer.invoke("offline:sales:list"),
+  removeOfflineSale: (id) => ipcRenderer.invoke("offline:sales:remove", id),
+  updateOfflineSale: (id, update) => ipcRenderer.invoke("offline:sales:update", id, update),
+  completeOfflineSale: (id, sale) => ipcRenderer.invoke("offline:sales:complete", id, sale),
+  createOfflineClosure: (closure) => ipcRenderer.invoke("offline:closures:create", closure),
+  previewOfflineClosure: (options) => ipcRenderer.invoke("offline:closures:preview", options),
+  recordOfflineClosureSale: (record) => ipcRenderer.invoke("offline:closures:record-sale", record),
+  getOfflineClosures: (options) => ipcRenderer.invoke("offline:closures:list", options),
+  getOfflineClosure: (id) => ipcRenderer.invoke("offline:closures:get", id),
+  enqueueOfflineCustomer: (record) => ipcRenderer.invoke("offline:customers:enqueue", record),
+  getOfflineCustomersOutbox: (options) => ipcRenderer.invoke("offline:customers:list", options),
+  getOfflineOutboxSyncStatus: () => ipcRenderer.invoke("offline:sync:status"),
+  registerOfflineSyncSession: (token) => ipcRenderer.invoke("offline:sync:session", token),
+  requestOfflineOutboxSync: () => ipcRenderer.invoke("offline:sync:request"),
+  setOfflineUiMode: (active) => {
+    compactOfflineMode = Boolean(active);
+    if (compactOfflineMode) hideSystemStatus();
+    return true;
+  },
+  onOfflineSnapshotSync: (handler) => {
+    if (typeof handler !== "function") return () => {};
+    offlineSnapshotSyncSubscribers.add(handler);
+    return () => offlineSnapshotSyncSubscribers.delete(handler);
+  },
+  onOfflineOutboxSync: (handler) => {
+    if (typeof handler !== "function") return () => {};
+    offlineOutboxSyncSubscribers.add(handler);
+    return () => offlineOutboxSyncSubscribers.delete(handler);
+  },
+  onSystemStatus: (handler) => {
+    if (typeof handler !== "function") return () => {};
+    systemStatusSubscribers.add(handler);
+    return () => systemStatusSubscribers.delete(handler);
+  },
+  notifyPosUiReady: () => {
+    hideNativeStartupOverlay();
+    return ipcRenderer.invoke("pos-ui:ready");
+  },
   onUpdateStatus: (handler) => {
     ipcRenderer.removeAllListeners("update:status");
     ipcRenderer.on("update:status", (_event, payload) => handler(payload));

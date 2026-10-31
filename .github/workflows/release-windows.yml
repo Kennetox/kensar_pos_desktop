@@ -24,6 +24,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify bundled POS UI
+        shell: pwsh
+        run: |
+          # Sin la interfaz local el instalador cargaría la versión web y no funcionaría sin conexión.
+          if (-not (Test-Path "pos-ui/login-pos/index.html")) { Write-Error "Falta pos-ui: ejecuta npm run build:pos-ui y versiona pos-ui antes de publicar."; exit 1 }
+
       - name: Build and publish Windows installer
         run: npx electron-builder --win nsis --x64 --publish always
         env:
