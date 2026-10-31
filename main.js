@@ -895,6 +895,25 @@ const hasPendingOutbox = () => {
   return counts.pendingSales + counts.pendingCustomers + counts.pendingClosures > 0;
 };
 
+// /healthz no consulta la base de datos, así que no ve el mantenimiento que
+// Render anuncia en system_status antes de cada despliegue. Tras una respuesta
+// sana se consulta /readyz solo para detectarlo: si falla o tarda, se ignora y
+// nunca provoca una falsa caída.
+const SYSTEM_STATUS_MAINTENANCE_TIMEOUT_MS = 3_000;
+const fetchAnnouncedMaintenance = async () => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SYSTEM_STATUS_MAINTENANCE_TIMEOUT_MS);
+  try {
+    const response = await fetchSystemHealth(apiEndpoint("/readyz"), controller.signal);
+    const payload = await response.json().catch(() => ({}));
+    return payload?.status === "maintenance" || payload?.maintenance === true ? payload : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const checkSystemStatus = async () => {
   // Nunca permitimos que un sondeo viejo termine después de uno nuevo y
   // sobrescriba su estado.
@@ -918,7 +937,15 @@ const checkSystemStatus = async () => {
     details = { httpStatus: response.status, serverMessage: payload.message || null, retryAfterSeconds: payload.retry_after_seconds || null };
     if (payload.status === "maintenance" || payload.maintenance === true) event = { type: "maintenance" };
     else if (!response.ok) event = { type: "failure", kind: "http" };
-    else event = { type: "success" };
+    else {
+      const announced = await fetchAnnouncedMaintenance();
+      if (announced) {
+        details = { ...details, serverMessage: announced.message || null, retryAfterSeconds: announced.retry_after_seconds || null };
+        event = { type: "maintenance" };
+      } else {
+        event = { type: "success" };
+      }
+    }
   } catch (error) {
     const elapsedMs = Date.now() - startedAt;
     const networkError = describeNetworkError(error);
