@@ -1,6 +1,6 @@
 {
   "name": "kensar_pos_desktop",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "description": "",
   "main": "main.js",
   "scripts": {
@@ -9,11 +9,11 @@
     "start:prod": "npm run build:pos-ui && electron .",
     "start:local": "npm run build:pos-ui && POS_ENV=local electron .",
     "start:local:api": "npm run build:pos-ui && POS_ENV=local POS_API_BASE_URL=http://127.0.0.1:8000 POS_DISABLE_PRINT_AGENT=1 electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder --publish=never",
-    "dist:win": "electron-builder --win --publish=never",
-    "dist:publish": "electron-builder --publish=always",
-    "dist:win:publish": "electron-builder --win --publish=always",
+    "pack": "npm run build:pos-ui && electron-builder --dir",
+    "dist": "npm run build:pos-ui && electron-builder --publish=never",
+    "dist:win": "npm run build:pos-ui && electron-builder --win --publish=never",
+    "dist:publish": "npm run build:pos-ui && electron-builder --publish=always",
+    "dist:win:publish": "npm run build:pos-ui && electron-builder --win --publish=always",
     "test": "node --test test/*.test.js",
     "postinstall": "electron-builder install-app-deps"
   },
@@ -40,7 +40,8 @@
       "health-probe.js",
       "renderer/**",
       "pos-ui/**",
-      "package.json"
+      "package.json",
+      "update-controller.js"
     ],
     "directories": {
       "output": "dist"

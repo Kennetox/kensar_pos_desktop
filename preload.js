@@ -435,8 +435,13 @@ contextBridge.exposeInMainWorld("kensar", {
     hideNativeStartupOverlay();
     return ipcRenderer.invoke("pos-ui:ready");
   },
+  getUpdateStatus: () => ipcRenderer.invoke("update:get"),
+  checkForUpdates: () => ipcRenderer.invoke("update:check"),
+  installUpdate: () => ipcRenderer.invoke("update:install"),
+  cancelUpdateInstall: () => ipcRenderer.invoke("update:cancel"),
   onUpdateStatus: (handler) => {
-    ipcRenderer.removeAllListeners("update:status");
-    ipcRenderer.on("update:status", (_event, payload) => handler(payload));
+    const listener = (_event, payload) => handler(payload);
+    ipcRenderer.on("update:status", listener);
+    return () => ipcRenderer.removeListener("update:status", listener);
   },
 });

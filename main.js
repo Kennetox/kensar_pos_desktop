@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog, protocol, safeStorage, net, session } = require("electron");
+const { createUpdateController } = require("./update-controller");
 const { autoUpdater } = require("electron-updater");
 const { exec } = require("child_process");
 const http = require("http");
@@ -1249,15 +1250,9 @@ app.whenReady().then(async () => {
   createWindow();
   mainDiagnostics.start();
   startSystemStatusMonitor();
-  if (app.isPackaged) {
-    autoUpdater.logger = console;
-    autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = true;
-    autoUpdater.checkForUpdatesAndNotify();
-    setInterval(() => {
-      autoUpdater.checkForUpdatesAndNotify();
-    }, 6 * 60 * 60 * 1000);
-  }
+  autoUpdater.logger = console;
+  void desktopUpdates.check();
+  setInterval(() => { void desktopUpdates.check(); }, 6 * 60 * 60 * 1000);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -1299,31 +1294,26 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-const sendUpdateStatus = (payload) => {
-  if (!mainWindow) return;
-  mainWindow.webContents.send("update:status", payload);
-};
-
-if (app.isPackaged) {
-  autoUpdater.on("checking-for-update", () => {
-    sendUpdateStatus({ status: "checking" });
-  });
-  autoUpdater.on("update-available", (info) => {
-    sendUpdateStatus({ status: "available", info });
-  });
-  autoUpdater.on("update-not-available", () => {
-    sendUpdateStatus({ status: "none" });
-  });
-  autoUpdater.on("download-progress", (progress) => {
-    sendUpdateStatus({ status: "downloading", progress });
-  });
-  autoUpdater.on("update-downloaded", (info) => {
-    sendUpdateStatus({ status: "downloaded", info });
-  });
-  autoUpdater.on("error", (err) => {
-    sendUpdateStatus({ status: "error", message: String(err?.message || err) });
-  });
-}
+const desktopUpdates = createUpdateController({
+  updater: autoUpdater,
+  supported: app.isPackaged && process.platform === "win32",
+  version: app.getVersion(),
+  publish: (payload) => {
+    if (payload.status === "error") isQuitting = false;
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("update:status", payload);
+  },
+  install: async () => {
+    // La copia anterior del catálogo permanece válida si se cancela una descarga.
+    offlineSnapshotAbortController?.abort();
+    await Promise.race([bestEffortLogoutBeforeQuit(), wait(QUIT_LOGOUT_TIMEOUT_MS)]);
+    isQuitting = true;
+    autoUpdater.quitAndInstall(false, true);
+  },
+});
+ipcMain.handle("update:get", () => desktopUpdates.getState());
+ipcMain.handle("update:check", () => desktopUpdates.check());
+ipcMain.handle("update:install", () => desktopUpdates.scheduleInstall());
+ipcMain.handle("update:cancel", () => desktopUpdates.cancelInstall());
 
 ipcMain.handle("config:get", () => {
   return loadConfig();

@@ -1,12 +1,18 @@
-name: Release Metrik POS for Windows
+name: Publicar Metrik POS Windows
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
+
+# Una única publicación a la vez, sin interrumpir una subida en curso.
+concurrency:
+  group: metrik-pos-windows-release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -21,16 +27,36 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
+      - name: Comprobar versión pendiente
+        id: plan
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await require('./scripts/github-release.cjs').run({ github, context, core, phase: 'plan' });
+
+      - name: Instalar dependencias
+        if: steps.plan.outputs.publish == 'true'
         run: npm ci
 
-      - name: Verify bundled POS UI
+      - name: Pruebas de escritorio
+        if: steps.plan.outputs.publish == 'true'
+        run: npm test
+
+      - name: Comprobar interfaz offline incluida
+        if: steps.plan.outputs.publish == 'true'
         shell: pwsh
         run: |
-          # Sin la interfaz local el instalador cargaría la versión web y no funcionaría sin conexión.
-          if (-not (Test-Path "pos-ui/login-pos/index.html")) { Write-Error "Falta pos-ui: ejecuta npm run build:pos-ui y versiona pos-ui antes de publicar."; exit 1 }
+          if (-not (Test-Path "pos-ui/login-pos/index.html")) { throw "Falta pos-ui: ejecuta npm run build:pos-ui e incluye pos-ui en el commit." }
+          if (-not (Test-Path "pos-ui/pos/index.html")) { throw "Falta la pantalla de caja offline." }
 
-      - name: Build and publish Windows installer
-        run: npx electron-builder --win nsis --x64 --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # La interfaz ya está versionada: no requiere un checkout del frontend.
+      - name: Compilar instalador sin publicar
+        if: steps.plan.outputs.publish == 'true'
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: Crear tag, subir archivos y publicar release estable
+        if: steps.plan.outputs.publish == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await require('./scripts/github-release.cjs').run({ github, context, core, phase: 'publish' });
