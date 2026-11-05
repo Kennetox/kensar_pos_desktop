@@ -28,6 +28,9 @@ jobs:
         run: |
           # Sin la interfaz local el instalador cargaría la versión web y no funcionaría sin conexión.
           if (-not (Test-Path "pos-ui/login-pos/index.html")) { Write-Error "Falta pos-ui: ejecuta npm run build:pos-ui y versiona pos-ui antes de publicar."; exit 1 }
+          if (-not (Test-Path "pos-ui/pos/index.html")) { Write-Error "Falta la pantalla de caja offline."; exit 1 }
+          if (-not (Test-Path "pos-ui/dashboard/index.html")) { Write-Error "Falta la vista rápida del panel."; exit 1 }
+          if (-not (Test-Path "pos-ui/dashboard/sales/index.html")) { Write-Error "Falta el historial de ventas de la vista rápida."; exit 1 }
 
       - name: Build installer
         run: npx electron-builder --win nsis --x64 --publish never

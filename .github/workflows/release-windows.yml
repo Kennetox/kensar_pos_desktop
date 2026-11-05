@@ -48,6 +48,8 @@ jobs:
         run: |
           if (-not (Test-Path "pos-ui/login-pos/index.html")) { throw "Falta pos-ui: ejecuta npm run build:pos-ui e incluye pos-ui en el commit." }
           if (-not (Test-Path "pos-ui/pos/index.html")) { throw "Falta la pantalla de caja offline." }
+          if (-not (Test-Path "pos-ui/dashboard/index.html")) { throw "Falta la vista rápida del panel." }
+          if (-not (Test-Path "pos-ui/dashboard/sales/index.html")) { throw "Falta el historial de ventas de la vista rápida." }
 
       # La interfaz ya está versionada: no requiere un checkout del frontend.
       - name: Compilar instalador sin publicar
