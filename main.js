@@ -1062,6 +1062,25 @@ const bestEffortLogoutBeforeQuit = async () => {
   }
 };
 
+// Las decisiones de salida pertenecen a la interfaz de Metrik, no a un
+// cuadro nativo de Windows. El proceso principal solo ejecuta una salida ya
+// confirmada por el usuario.
+const requestRendererClose = () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("app:close-requested");
+  }
+};
+
+const finishConfirmedQuit = () => {
+  if (isQuitting) return;
+  isQuitting = true;
+  Promise.race([bestEffortLogoutBeforeQuit(), wait(QUIT_LOGOUT_TIMEOUT_MS)]).finally(() => {
+    localPosStore?.close();
+    stopLocalPosServer();
+    app.quit();
+  });
+};
+
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
@@ -1090,6 +1109,11 @@ const createWindow = () => {
     },
   });
   mainWindow.setMenuBarVisibility(false);
+  mainWindow.on("close", (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    requestRendererClose();
+  });
   const allowKiosk = process.platform === "win32" && POS_ENV !== "local";
   if (allowKiosk) {
     // Kiosk already owns the fullscreen transition.  Requesting fullscreen a
@@ -1262,32 +1286,7 @@ app.whenReady().then(async () => {
 app.on("before-quit", (event) => {
   if (isQuitting) return;
   event.preventDefault();
-  if (quitPromptOpen) return;
-  const finishQuit = () => {
-    isQuitting = true;
-    Promise.race([bestEffortLogoutBeforeQuit(), wait(QUIT_LOGOUT_TIMEOUT_MS)]).finally(() => {
-      localPosStore?.close();
-      stopLocalPosServer();
-      app.quit();
-    });
-  };
-  if (offlineSnapshotSync.state !== "syncing") return finishQuit();
-  quitPromptOpen = true;
-  dialog.showMessageBox(mainWindow, {
-    type: "warning",
-    title: "Sincronización en curso",
-    message: "Se está guardando el catálogo para uso sin conexión.",
-    detail: `Progreso: ${offlineSnapshotSync.progress ?? "…"}%${offlineSnapshotSync.estimatedRemainingSeconds != null ? ` · aprox. ${offlineSnapshotSync.estimatedRemainingSeconds}s restantes` : ""}. Si cierras ahora, se conservará la última copia completa.`,
-    buttons: ["Seguir descargando", "Cerrar de todas formas"],
-    defaultId: 0,
-    cancelId: 0,
-    noLink: true,
-  }).then((result) => {
-    quitPromptOpen = false;
-    if (result.response !== 1) return;
-    offlineSnapshotAbortController?.abort();
-    finishQuit();
-  }).catch(() => { quitPromptOpen = false; });
+  requestRendererClose();
 });
 
 app.on("window-all-closed", () => {
@@ -1639,7 +1638,7 @@ ipcMain.handle("zoom:set", (_, value) => {
 });
 
 ipcMain.handle("app:quit", () => {
-  app.quit();
+  finishConfirmedQuit();
   return true;
 });
 

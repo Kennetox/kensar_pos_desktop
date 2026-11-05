@@ -386,6 +386,11 @@ contextBridge.exposeInMainWorld("kensar", {
   getZoomFactor: () => ipcRenderer.invoke("zoom:get"),
   setZoomFactor: (value) => ipcRenderer.invoke("zoom:set", value),
   quitApp: () => ipcRenderer.invoke("app:quit"),
+  onCloseRequested: (handler) => {
+    const listener = () => handler();
+    ipcRenderer.on("app:close-requested", listener);
+    return () => ipcRenderer.removeListener("app:close-requested", listener);
+  },
   shutdownSystem: () => ipcRenderer.invoke("app:shutdown"),
   getAppVersion: () => ipcRenderer.invoke("app:version"),
   getEnvConfig: () => ipcRenderer.invoke("env:get"),
